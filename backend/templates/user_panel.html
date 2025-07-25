@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Etkinlik Galerisi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="max-w-3xl mx-auto py-8 px-4">
+    <h1 class="text-2xl font-bold mb-4">📸 Yüzünüzle Eşleşen Fotoğraflar</h1>
+    <p class="mb-6 text-sm text-gray-600">Bu sayfa, yalnızca sizinle eşleşmiş fotoğrafları içerir. Lütfen bir selfie yükleyin veya çekin.</p>
+
+    <!-- 🙋‍♂️ Selfie Alanı -->
+    <div class="bg-white rounded shadow p-4 mb-6">
+      <h2 class="text-lg font-semibold mb-2">Selfie Yükleyin veya Çekin</h2>
+      <input type="file" id="selfieInput" accept="image/*" class="mb-3" />
+      <div class="flex flex-wrap gap-2">
+        <button onclick="startCamera()" class="bg-gray-700 text-white px-3 py-1 rounded">📷 Selfie Çek</button>
+        <button onclick="uploadSelfie()" class="bg-blue-600 text-white px-4 py-2 rounded">Yükle ve Eşleştir</button>
+      </div>
+      <div class="mt-4">
+        <video id="cameraView" autoplay playsinline class="rounded shadow w-full hidden"></video>
+        <canvas id="selfieCanvas" class="hidden"></canvas>
+      </div>
+    </div>
+
+    <!-- 🖼️ Galeri -->
+    <div id="gallerySection" class="hidden">
+      <h2 class="text-lg font-semibold mb-2">📷 Eşleşen Fotoğraflar</h2>
+      <div id="photoGallery" class="grid grid-cols-2 sm:grid-cols-3 gap-4 min-h-[100px]"></div>
+
+      <div class="mt-8 text-center">
+        <a id="downloadZip"
+           href="#"
+           class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition">
+          📦 Tümünü ZIP Olarak İndir
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const eventId = window.location.pathname.split("/").pop();
+    let stream;
+
+    function startCamera() {
+      const video = document.getElementById("cameraView");
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(s => {
+          stream = s;
+          video.srcObject = s;
+          video.classList.remove("hidden");
+        })
+        .catch(err => alert("Kamera erişimi reddedildi"));
+    }
+    function uploadSelfie() {
+      const input = document.getElementById("selfieInput");
+      const video = document.getElementById("cameraView");
+      const canvas = document.getElementById("selfieCanvas");
+
+      let blobPromise;
+
+      if (!input.files.length && video.srcObject) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+        blobPromise = new Promise(resolve => {
+          canvas.toBlob(resolve, "image/jpeg");
+        });
+      } else if (input.files.length) {
+        blobPromise = Promise.resolve(input.files[0]);
+      } else {
+        alert("Lütfen bir selfie yükleyin veya çekin.");
+        return;
+      }
+
+      blobPromise.then(blob => {
+        const formData = new FormData();
+        formData.append("selfie", blob, "selfie.jpg");
+
+        fetch(`/match-selfie/${eventId}`, {
+          method: "POST",
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            video.classList.add("hidden");
+          }
+
+          const gallery = document.getElementById("photoGallery");
+          const section = document.getElementById("gallerySection");
+          gallery.innerHTML = "";
+          section.classList.remove("hidden");
+
+          if (!data.photos || data.photos.length === 0) {
+            gallery.innerHTML = '<p class="text-gray-500 col-span-3">Hiç eşleşen fotoğraf bulunamadı.</p>';
+          } else {
+            document.getElementById("downloadZip").href = `/download/${eventId}?t=${Date.now()}`;
+            data.photos.forEach(photo => {
+              const img = document.createElement("img");
+              img.src = `/uploads/${eventId}/${photo}?t=${Date.now()}`;
+              img.className = "rounded shadow object-cover w-full aspect-video";
+              gallery.appendChild(img);
+            });
+          }
+        })
+        .catch(err => {
+          console.error("❌ Eşleşme hatası:", err);
+          alert("Eşleşme sırasında bir hata oluştu.");
+        });
+      });
+    }
+  </script>
+</body>
+</html>

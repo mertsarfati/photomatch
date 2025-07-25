@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>👩‍💻 Yönetici Paneli - {{ username }}</h1>
+
+    <!-- Etkinlik oluşturma -->
+    <section id="create-section">
+      <h2>➕ Yeni Etkinlik Oluştur</h2>
+      <form id="create-form">
+        <input type="text" id="event-name" placeholder="Etkinlik adı" required />
+        <input type="text" id="event-location" placeholder="Konum (isteğe bağlı)" />
+        <button type="submit">Oluştur</button>
+      </form>
+    </section>
+
+    <!-- Etkinlik listesi -->
+    <section id="list-section">
+      <h2>🗂 Etkinlikler</h2>
+      <ul id="event-list"></ul>
+    </section>
+
+    <!-- Fotoğraf yükleme ve istatistik -->
+    <section id="upload-section" style="display:none;">
+      <h2>📥 Fotoğraf Yükle - <span id="selected-event"></span></h2>
+      <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" id="file-input" name="file" accept="image/*" multiple />
+        <button type="submit">Yükle</button>
+      </form>
+      <div id="gallery-grid"></div>
+    </section>
+
+    <section id="stats-section" style="display:none;">
+      <h2>📊 İstatistikler</h2>
+      <div class="stats-grid">
+        <div class="stat-box"><span id="total">0</span><label>Yüz Sayısı</label></div>
+        <div class="stat-box"><span id="tagged">0</span><label>Eşleşen Fotoğraf</label></div>
+        <div class="stat-box"><span id="gender">0♂ / 0♀</span><label>Cinsiyet</label></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const adminUser = "{{ username }}";
+  </script>
+  <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

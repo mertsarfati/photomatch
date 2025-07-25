@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Giriş / Kayıt</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      width: 380px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 15px;
+      border: none;
+      background-color: #4A90E2;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #357ABD;
+    }
+    .switch {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 13px;
+      color: #666;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .message {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="loginCard">
+    <h2>Giriş Yap</h2>
+    <input type="text" id="loginUser" placeholder="Kullanıcı adı">
+    <input type="password" id="loginPass" placeholder="Şifre">
+    <button onclick="login()">Giriş Yap</button>
+    <div class="switch" onclick="toggleMode()">Kayıt Ol</div>
+    <div class="message" id="msg"></div>
+  </div>
+
+  <div class="card" id="registerCard" style="display:none;">
+    <h2>Kayıt Ol</h2>
+    <input type="text" id="regUser" placeholder="Kullanıcı adı">
+    <input type="password" id="regPass" placeholder="Şifre">
+    <button onclick="register()">Kayıt Ol</button>
+    <div class="switch" onclick="toggleMode()">Giriş Yap</div>
+    <div class="message" id="msg"></div>
+  </div>
+
+  <script>
+    function toggleMode() {
+      document.getElementById("loginCard").style.display =
+        document.getElementById("loginCard").style.display === "none" ? "block" : "none";
+      document.getElementById("registerCard").style.display =
+        document.getElementById("registerCard").style.display === "none" ? "block" : "none";
+      document.getElementById("msg").textContent = "";
+    }
+
+    function showMessage(text, isError = false) {
+      document.querySelectorAll(".message").forEach(el => {
+        el.textContent = text;
+        el.style.color = isError ? "red" : "green";
+      });
+    }
+
+    function login() {
+      const username = document.getElementById("loginUser").value.trim();
+      const password = document.getElementById("loginPass").value.trim();
+
+      fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      })
+      .then(res => res.json().then(d => ({ ok: res.ok, data: d })))
+      .then(({ ok, data }) => {
+        if (ok) {
+          showMessage(data.message);
+          setTimeout(() => window.location.href = data.redirect, 1000);
+        } else {
+          showMessage(data.message || "Giriş başarısız", true);
+        }
+      });
+    }
+
+    function register() {
+      const username = document.getElementById("regUser").value.trim();
+      const password = document.getElementById("regPass").value.trim();
+
+      fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      })
+      .then(res => res.json().then(d => ({ ok: res.ok, data: d })))
+      .then(({ ok, data }) => {
+        if (ok) {
+          showMessage(data.message);
+        } else {
+          showMessage(data.message || "Kayıt başarısız", true);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
