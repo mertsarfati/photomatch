@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Photo Match</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    img.preview {
+      max-width: 100px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      vertical-align: middle;
+    }
+
+    a.download-link {
+      margin-left: 10px;
+      color: #007BFF;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    #loading {
+      display: none;
+      font-style: italic;
+      color: #555;
+      margin-top: 10px;
+    }
+
+    li {
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 600px) {
+      img.preview {
+        max-width: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>👤 Selfie Yükle</h2>
+  <input type="file" id="selfieInput" accept="image/*" />
+  <div id="selfiePreview"></div>
+
+  <h2>🖼️ Fotoğrafları Yükle</h2>
+  <input type="file" id="photoInput" accept="image/*" multiple />
+  <div id="photoPreview"></div>
+
+  <button onclick="uploadAll()">Yükle ve Eşleşmeleri Göster</button>
+  <button onclick="downloadMatches()">📁 Eşleşmeleri indir (.zip)</button>
+  <p id="loading">🔄 Lütfen bekleyin, karşılaştırma yapılıyor...</p>
+
+  <h3>📎 Eşleşen Dosyalar:</h3>
+  <ul id="results"></ul>
+
+  <script>
+    const selfieInput = document.getElementById("selfieInput");
+    const photoInput = document.getElementById("photoInput");
+    const selfiePreview = document.getElementById("selfiePreview");
+    const photoPreview = document.getElementById("photoPreview");
+    const resultsList = document.getElementById("results");
+    const loadingText = document.getElementById("loading");
+
+    const uploadedFiles = new Set();
+
+    function displayPreviews(input, container) {
+      container.innerHTML = "";
+      Array.from(input.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement("img");
+          img.src = e.target.result;
+          img.className = "preview";
+          container.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    selfieInput.addEventListener("change", () => {
+      displayPreviews(selfieInput, selfiePreview);
+    });
+
+    photoInput.addEventListener("change", () => {
+      displayPreviews(photoInput, photoPreview);
+    });
+
+    async function uploadAll() {
+      if (!selfieInput.files[0]) {
+        alert("Lütfen bir selfie seçin.");
+        return;
+      }
+
+      loadingText.style.display = "block";
+      resultsList.innerHTML = "";
+
+      try {
+        // Selfie yükle
+        const selfieForm = new FormData();
+        const selfieName = selfieInput.files[0].name;
+        if (!uploadedFiles.has(selfieName)) {
+          selfieForm.append("file", selfieInput.files[0]);
+          await fetch("http://127.0.0.1:5000/upload", {
+            method: "POST",
+            body: selfieForm,
+          });
+          uploadedFiles.add(selfieName);
+        }
+
+        // Diğer fotoğrafları yükle
+        for (let i = 0; i < photoInput.files.length; i++) {
+          const file = photoInput.files[i];
+          if (!uploadedFiles.has(file.name)) {
+            const formData = new FormData();
+            formData.append("file", file);
+            await fetch("http://127.0.0.1:5000/upload", {
+              method: "POST",
+              body: formData,
+            });
+            uploadedFiles.add(file.name);
+          }
+        }
+
+        // Eşleşmeleri iste
+        const matchForm = new FormData();
+        matchForm.append("selfie", selfieName);
+
+        const response = await fetch("http://127.0.0.1:5000/match", {
+          method: "POST",
+          body: matchForm,
+        });
+
+        const result = await response.json();
+        loadingText.style.display = "none";
+
+        if (result.matches.length === 0) {
+          resultsList.innerHTML = "<li>Hiç eşleşme bulunamadı.</li>";
+        } else {
+          result.matches.forEach(fileName => {
+            const li = document.createElement("li");
+            const imageUrl = `http://127.0.0.1:5000/uploads/${fileName}`;
+
+            const img = document.createElement("img");
+            img.src = imageUrl;
+            img.className = "preview";
+            img.alt = fileName;
+
+            const text = document.createTextNode(" " + fileName + " ");
+
+            const downloadLink = document.createElement("a");
+            downloadLink.href = imageUrl;
+            downloadLink.download = fileName;
+            downloadLink.className = "download-link";
+            downloadLink.textContent = "İndir";
+
+            li.appendChild(img);
+            li.appendChild(text);
+            li.appendChild(downloadLink);
+            resultsList.appendChild(li);
+          });
+        }
+
+      } catch (err) {
+        loadingText.style.display = "none";
+        console.error("Eşleşme sırasında hata:", err);
+        alert("Bir hata oluştu. Lütfen tekrar deneyin.");
+      }
+    }
+
+    function downloadMatches() {
+      window.location.href = "http://127.0.0.1:5000/download-matches";
+    }
+  </script>
+</body>
+</html>

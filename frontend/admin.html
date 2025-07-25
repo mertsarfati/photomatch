@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Paneli</title>
+  <link href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 260px;
+      background: #1f2937;
+      color: white;
+      padding: 20px;
+    }
+    .sidebar h2 { font-size: 20px; margin-top: 0; }
+    .event-list { list-style: none; padding: 0; }
+    .event-list li {
+      background: #374151;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .event-list li:hover { background: #4b5563; }
+    .main {
+      flex: 1;
+      padding: 30px;
+    }
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      max-width: 700px;
+    }
+    h3 { margin-top: 0; }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.95; }
+    img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      font-weight: bold;
+      font-size: 14px;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      line-height: 18px;
+      cursor: pointer;
+    }
+    #photoGallery {
+      display: flex;
+      overflow-x: auto;
+      gap: 12px;
+      padding-top: 10px;
+      scroll-snap-type: x mandatory;
+    }
+    .gallery-item {
+      height: 100px;
+      border-radius: 6px;
+      object-fit: cover;
+      scroll-snap-align: start;
+    }
+    .gallery-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>🎯 Etkinlikler</h2>
+    <button onclick="createNewEvent()">+ Yeni Etkinlik</button>
+    <ul class="event-list" id="eventList"></ul>
+  </div>
+
+  <div class="main">
+    <div id="eventArea" style="display:none;">
+      <div class="card">
+        <h3>🔧 Etkinlik Bilgileri</h3>
+        <input type="text" id="eventNameInput" placeholder="Etkinlik Adı" />
+        <input type="text" id="eventLocationInput" placeholder="Konum" />
+        <button onclick="updateEvent()">Kaydet</button>
+        <p class="link">📎 <a id="eventLink" target="_blank"></a></p>
+        <div id="qrcode"></div>
+      </div>
+
+      <div class="card">
+        <h3>🖼️ Kapak Yükle (3:2 Kırp)</h3>
+        <input type="file" id="coverInput" accept="image/*" />
+        <img id="coverPreview" />
+        <button onclick="uploadCover()">Kırp ve Yükle</button>
+      </div>
+
+      <div class="card">
+        <h3>📷 Fotoğraf Yükle</h3>
+        <input type="file" id="photoInput" accept="image/*" multiple />
+        <button onclick="uploadPhoto()">Yükle</button>
+        <p id="uploadStatus"></p>
+        <div id="photoGallery"></div>
+      </div>
+
+      <div class="card" id="statsSection" style="display:none;">
+        <h3>📊 İstatistikler</h3>
+        <p id="faceCount"></p>
+        <p id="taggedCount"></p>
+        <p id="femaleCount"></p>
+        <p id="maleCount"></p>
+      </div>
+
+      <div class="card" style="background: #fee2e2;">
+        <h3>🗑️ Etkinliği Sil</h3>
+        <button style="background:#dc2626;" onclick="deleteEvent(selectedId)">Sil</button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  let cropper;
+  let selectedId = "";
+  const coverInput = document.getElementById("coverInput");
+  let coverPreview = document.getElementById("coverPreview");
+
+  coverInput.addEventListener("change", () => {
+    const file = coverInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      coverPreview.src = reader.result;
+      coverPreview.onload = () => {
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(coverPreview, {
+          aspectRatio: 3 / 2,
+          viewMode: 1
+        });
+      };
+      coverPreview.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function uploadCover() {
+    if (!cropper) return alert("Lütfen görsel seçip kırp.");
+    const canvas = cropper.getCroppedCanvas({ width: 1200, height: 800 });
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg"));
+    const formData = new FormData();
+    formData.append("cover", blob, "cover.jpg");
+
+    const res = await fetch(`http://127.0.0.1:5000/upload-cover/${selectedId}`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (res.ok) {
+      cropper.destroy();
+      cropper = null;
+      coverInput.value = "";
+      const fresh = coverPreview.cloneNode(false);
+      coverPreview.parentNode.replaceChild(fresh, coverPreview);
+      coverPreview = document.getElementById("coverPreview");
+      coverPreview.src = `http://127.0.0.1:5000/uploads/${selectedId}/cover.jpg`;
+      coverPreview.style.display = "block";
+      selectEvent(selectedId);
+      alert("Kapak başarıyla yüklendi ✅");
+    } else {
+      alert("❌ Yükleme başarısız.");
+    }
+  }
+
+  async function uploadPhoto() {
+    const files = document.getElementById("photoInput").files;
+    if (!files.length) return;
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+      await fetch(`http://127.0.0.1:5000/upload/${selectedId}`, {
+        method: "POST",
+        body: formData
+      });
+    }
+    await renderGallery();
+  }
+
+  async function renderGallery() {
+    const gallery = document.getElementById("photoGallery");
+    gallery.innerHTML = "";
+
+    const res = await fetch(`http://127.0.0.1:5000/data/${selectedId}/faces.json`);
+    const data = await res.json().catch(() => []);
+
+    for (const entry of data) {
+      const photoId = entry.photo_id;
+      const wrapper = document.createElement("div");
+      wrapper.className = "gallery-wrapper";
+
+      const img = document.createElement("img");
+      img.src = `http://127.0.0.1:5000/uploads/${selectedId}/${photoId}`;
+      img.className = "gallery-item";
+      img.title = `${entry.faces_detected.length} yüz`;
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "❌";
+      delBtn.className = "delete-btn";
+      delBtn.onclick = async () => {
+        const confirmDel = confirm(`“${photoId}” silinsin mi?`);
+        if (!confirmDel) return;
+        await fetch(`http://127.0.0.1:5000/delete-photo/${selectedId}/${photoId}`, {
+          method: "DELETE"
+        });
+        await renderGallery();
+      };
+
+      wrapper.appendChild(img);
+      wrapper.appendChild(delBtn);
+      gallery.appendChild(wrapper);
+    }
+  }
+
+  async function createNewEvent() {
+    const name = prompt("Etkinlik adı:");
+    if (!name) return;
+    const location = prompt("Konum (isteğe bağlı):");
+    await fetch("http://127.0.0.1:5000/create-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, location })
+    });
+    await loadEvents();
+  }
+
+  async function updateEvent() {
+    const name = document.getElementById("eventNameInput").value;
+    const location = document.getElementById("eventLocationInput").value;
+    await fetch(`http://127.0.0.1:5000/event-info/${selectedId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, location })
+    });
+    alert("Etkinlik güncellendi.");
+  }
+
+  async function deleteEvent(id) {
+    const info = await fetch(`http://127.0.0.1:5000/event-info/${id}`).then(r => r.json());
+    const name = info.name || id;
+    const confirmDelete = confirm(`“${name}” silinecek. Emin misin?`);
+    if (!confirmDelete) return;
+    await fetch(`http://127.0.0.1:5000/delete-event/${id}`, { method: "DELETE" });
+    await loadEvents();
+    document.getElementById("eventArea").style.display = "none";
+    document.getElementById("statsSection").style.display = "none";
+    alert("Etkinlik silindi.");
+  }
+
+  async function selectEvent(id) {
+    selectedId = id;
+    document.getElementById("eventArea").style.display = "block";
+
+    const info = await fetch(`http://127.0.0.1:5000/event-info/${id}`).then(r => r.json());
+    document.getElementById("eventNameInput").value = info.name || "";
+    document.getElementById("eventLocationInput").value = info.location || "";
+
+    const userUrl = `http://127.0.0.1:5000/user.html?event_id=${id}`;
+    const eventLink = document.getElementById("eventLink");
+    eventLink.href = userUrl;
+    eventLink.textContent = userUrl;
+    generateQRCode(userUrl);
+
+    coverPreview.src = `http://127.0.0.1:5000/uploads/${id}/cover.jpg`;
+    coverPreview.style.display = "block";
+
+    const stats = await fetch(`http://127.0.0.1:5000/stats/${id}`).then(r => r.json());
+    document.getElementById("faceCount").textContent = `Toplam yüz: ${stats.total_faces}`;
+    document.getElementById("taggedCount").textContent = `Etiketlenen fotoğraf: ${stats.tagged_photos}`;
+    document.getElementById("femaleCount").textContent = `Kadın: ${stats.female}`;
+    document.getElementById("maleCount").textContent = `Erkek: ${stats.male}`;
+    document.getElementById("statsSection").style.display = "block";
+
+    await renderGallery();
+  }
+
+  function generateQRCode(url) {
+    const qrArea = document.getElementById("qrcode");
+    qrArea.innerHTML = "";
+    new QRCode(qrArea, {
+      text: url,
+      width: 160,
+      height: 160,
+      colorDark: "#111827",
+      colorLight: "#ffffff"
+    });
+  }
+
+  async function loadEvents() {
+    const res = await fetch("http://127.0.0.1:5000/list-events");
+    const data = await res.json();
+    const list = document.getElementById("eventList");
+    list.innerHTML = "";
+    for (const id of data.events) {
+      const li = document.createElement("li");
+      li.textContent = id;
+      li.onclick = () => selectEvent(id);
+      list.appendChild(li);
+    }
+  }
+
+  loadEvents();
+</script>
+</body>
+</html>
